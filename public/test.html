@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Sudoku CAPTCHA Tester</title>
+        <link rel="stylesheet" href="test.css" />
+    </head>
+    <body>
+        <div class="App">
+            <div class="App-header">
+                <h1>Sudoku CAPTCHA Tester</h1>
+                <button onclick="generatePuzzle()" class="resetButton">
+                    Generate New Puzzle
+                </button>
+                <div id="sudokuGrid"></div>
+                <p id="message"></p>
+                <div class="buttonContainer">
+                    <button onclick="checkSolution()" class="checkButton">
+                        Check Solution
+                    </button>
+                    <button onclick="solvePuzzle()" class="solveButton">
+                        Solve Puzzle
+                    </button>
+                    <button onclick="testSolve()" class="testSolveButton">
+                        Test Solve
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let currentPuzzle;
+            let currentPuzzleId;
+            let solution;
+            let testSolveInterval;
+
+            async function generatePuzzle() {
+                const response = await fetch("http://localhost:3000/generate", {
+                    method: "POST",
+                });
+                const data = await response.json();
+                currentPuzzleId = data.id;
+                currentPuzzle = data.puzzle;
+                solution = data.solution; // Store the solution
+                displayPuzzle(currentPuzzle);
+                document.getElementById("message").innerText = "";
+                clearInterval(testSolveInterval); // Clear any existing interval
+            }
+
+            function testSolve() {
+                if (!solution) {
+                    document.getElementById("message").innerText =
+                        "No puzzle generated yet!";
+                    return;
+                }
+
+                let row = 0,
+                    col = 0;
+
+                testSolveInterval = setInterval(() => {
+                    while (row < 9) {
+                        if (currentPuzzle[row][col] === 0) {
+                            document.querySelector(
+                                `input[data-row="${row}"][data-col="${col}"]`,
+                            ).value = solution[row][col];
+                            break;
+                        }
+                        col++;
+                        if (col === 9) {
+                            col = 0;
+                            row++;
+                        }
+                    }
+
+                    if (row === 9) {
+                        clearInterval(testSolveInterval);
+                        checkSolution();
+                    } else {
+                        col++;
+                        if (col === 9) {
+                            col = 0;
+                            row++;
+                        }
+                    }
+                }, 100); // Fill in a number every 100ms
+            }
+
+            function displayPuzzle(puzzle) {
+                const grid = document.getElementById("sudokuGrid");
+                grid.innerHTML = "";
+                const table = document.createElement("table");
+                for (let i = 0; i < 9; i++) {
+                    const row = document.createElement("tr");
+                    if ((i + 1) % 3 === 0) row.classList.add("bBorder");
+                    for (let j = 0; j < 9; j++) {
+                        const cell = document.createElement("td");
+                        if ((j + 1) % 3 === 0) cell.classList.add("rBorder");
+                        const input = document.createElement("input");
+                        input.type = "text";
+                        input.classList.add("cellInput");
+                        input.maxLength = 1;
+                        input.value = puzzle[i][j] || "";
+                        input.readOnly = puzzle[i][j] !== 0;
+                        input.dataset.row = i;
+                        input.dataset.col = j;
+                        input.addEventListener("input", validateInput);
+                        cell.appendChild(input);
+                        row.appendChild(cell);
+                    }
+                    table.appendChild(row);
+                }
+                grid.appendChild(table);
+            }
+
+            function validateInput(event) {
+                const input = event.target;
+                input.value = input.value.replace(/[^1-9]/g, "");
+            }
+
+            async function checkSolution() {
+                const solution = getCurrentPuzzleState();
+                const response = await fetch("http://localhost:3000/verify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        id: currentPuzzleId,
+                        solution: solution,
+                    }),
+                });
+                const data = await response.json();
+                document.getElementById("message").innerText = data.success
+                    ? "Correct solution!"
+                    : "Incorrect solution. Try again.";
+            }
+
+            function getCurrentPuzzleState() {
+                const puzzle = Array(9)
+                    .fill()
+                    .map(() => Array(9).fill(0));
+                const inputs = document.querySelectorAll("#sudokuGrid input");
+                inputs.forEach((input) => {
+                    const row = parseInt(input.dataset.row);
+                    const col = parseInt(input.dataset.col);
+                    puzzle[row][col] = parseInt(input.value) || 0;
+                });
+                return puzzle;
+            }
+
+            function solvePuzzle() {
+                if (currentPuzzle) {
+                    displayPuzzle(currentPuzzle);
+                }
+            }
+
+            // Generate a puzzle when the page loads
+            generatePuzzle();
+        </script>
+    </body>
+</html>
