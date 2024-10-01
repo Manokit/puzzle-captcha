@@ -1,4 +1,6 @@
 // utils/sudokuGenerator.js
+//
+// Thank you to https://github.com/Udbhav-regadamilli/Sudoku
 
 function generateSudoku() {
   const puzzle = Array(9)
